@@ -120,7 +120,6 @@ static char UIScrollViewPullToRefreshView;
     if(!showsPullToRefresh) {
         if (self.pullToRefreshView.isObserving) {
             [self removeObserver:self.pullToRefreshView forKeyPath:@"contentOffset"];
-            [self removeObserver:self.pullToRefreshView forKeyPath:@"contentSize"];
             [self removeObserver:self.pullToRefreshView forKeyPath:@"frame"];
             [self.pullToRefreshView resetScrollViewContentInset];
             self.pullToRefreshView.isObserving = NO;
@@ -133,7 +132,7 @@ static char UIScrollViewPullToRefreshView;
             [self addObserver:self.pullToRefreshView forKeyPath:@"frame" options:NSKeyValueObservingOptionNew context:nil];
             self.pullToRefreshView.isObserving = YES;
             
-            CGFloat yOrigin = 0;
+            CGFloat yOrigin;
             switch (self.pullToRefreshView.position) {
                 case SVPullToRefreshPositionTop:
                     yOrigin = -SVPullToRefreshViewHeight;
@@ -158,7 +157,7 @@ static char UIScrollViewPullToRefreshView;
 @implementation SVPullToRefreshView
 
 // public properties
-@synthesize pullToRefreshActionHandler, arrowColor, textColor, activityIndicatorViewColor, activityIndicatorViewStyle, lastUpdatedDate, dateFormatter;
+@synthesize pullToRefreshActionHandler, arrowColor, textColor, activityIndicatorViewStyle, lastUpdatedDate, dateFormatter;
 
 @synthesize state = _state;
 @synthesize scrollView = _scrollView;
@@ -231,7 +230,6 @@ static char UIScrollViewPullToRefreshView;
     }
     else {
         switch (self.state) {
-            case SVPullToRefreshStateAll:
             case SVPullToRefreshStateStopped:
                 self.arrow.alpha = 1;
                 [self.activityIndicatorView stopAnimating];
@@ -291,14 +289,7 @@ static char UIScrollViewPullToRefreshView;
                                                       lineBreakMode:self.subtitleLabel.lineBreakMode];
         
         CGFloat maxLabelWidth = MAX(titleSize.width,subtitleSize.width);
-        
-        CGFloat totalMaxWidth;
-        if (maxLabelWidth) {
-        	totalMaxWidth = leftViewWidth + margin + maxLabelWidth;
-        } else {
-        	totalMaxWidth = leftViewWidth + maxLabelWidth;
-        }
-        
+        CGFloat totalMaxWidth = leftViewWidth + margin + maxLabelWidth;
         CGFloat labelX = (self.bounds.size.width / 2) - (totalMaxWidth / 2) + leftViewWidth + margin;
         
         if(subtitleSize.height > 0){
@@ -336,7 +327,6 @@ static char UIScrollViewPullToRefreshView;
             break;
         case SVPullToRefreshPositionBottom:
             currentInsets.bottom = self.originalBottomInset;
-            currentInsets.top = self.originalTopInset;
             break;
     }
     [self setScrollViewContentInset:currentInsets];
@@ -392,10 +382,10 @@ static char UIScrollViewPullToRefreshView;
 
 - (void)scrollViewDidScroll:(CGPoint)contentOffset {
     if(self.state != SVPullToRefreshStateLoading) {
-        CGFloat scrollOffsetThreshold = 0;
+        CGFloat scrollOffsetThreshold;
         switch (self.position) {
             case SVPullToRefreshPositionTop:
-                scrollOffsetThreshold = self.frame.origin.y - self.originalTopInset;
+                scrollOffsetThreshold = self.frame.origin.y-self.originalTopInset;
                 break;
             case SVPullToRefreshPositionBottom:
                 scrollOffsetThreshold = MAX(self.scrollView.contentSize.height - self.scrollView.bounds.size.height, 0.0f) + self.bounds.size.height + self.originalBottomInset;
@@ -503,10 +493,6 @@ static char UIScrollViewPullToRefreshView;
     return self.titleLabel.textColor;
 }
 
-- (UIColor *)activityIndicatorViewColor {
-    return self.activityIndicatorView.color;
-}
-
 - (UIActivityIndicatorViewStyle)activityIndicatorViewStyle {
     return self.activityIndicatorView.activityIndicatorViewStyle;
 }
@@ -562,10 +548,6 @@ static char UIScrollViewPullToRefreshView;
 	self.subtitleLabel.textColor = newTextColor;
 }
 
-- (void)setActivityIndicatorViewColor:(UIColor *)color {
-    self.activityIndicatorView.color = color;
-}
-
 - (void)setActivityIndicatorViewStyle:(UIActivityIndicatorViewStyle)viewStyle {
     self.activityIndicatorView.activityIndicatorViewStyle = viewStyle;
 }
@@ -619,11 +601,11 @@ static char UIScrollViewPullToRefreshView;
     
     switch (self.position) {
         case SVPullToRefreshPositionTop:
-            if(!self.wasTriggeredByUser)
+            if(!self.wasTriggeredByUser && self.scrollView.contentOffset.y < -self.originalTopInset)
                 [self.scrollView setContentOffset:CGPointMake(self.scrollView.contentOffset.x, -self.originalTopInset) animated:YES];
             break;
         case SVPullToRefreshPositionBottom:
-            if(!self.wasTriggeredByUser)
+            if(!self.wasTriggeredByUser && self.scrollView.contentOffset.y < -self.originalTopInset)
                 [self.scrollView setContentOffset:CGPointMake(self.scrollView.contentOffset.x, self.scrollView.contentSize.height - self.scrollView.bounds.size.height + self.originalBottomInset) animated:YES];
             break;
     }
@@ -638,12 +620,11 @@ static char UIScrollViewPullToRefreshView;
     _state = newState;
     
     [self setNeedsLayout];
-    [self layoutIfNeeded];
     
     switch (newState) {
-        case SVPullToRefreshStateAll:
         case SVPullToRefreshStateStopped:
             [self resetScrollViewContentInset];
+            self.wasTriggeredByUser = YES;
             break;
             
         case SVPullToRefreshStateTriggered:
@@ -714,7 +695,7 @@ static char UIScrollViewPullToRefreshView;
         alphaGradient = CGGradientCreateWithColors(colorSpace, (__bridge CFArrayRef)alphaGradientColors, alphaGradientLocations);
     }else{
         const CGFloat * components = CGColorGetComponents([self.arrowColor CGColor]);
-        size_t numComponents = CGColorGetNumberOfComponents([self.arrowColor CGColor]);
+        int numComponents = (int)CGColorGetNumberOfComponents([self.arrowColor CGColor]);
         CGFloat colors[8];
         switch(numComponents){
             case 2:{
